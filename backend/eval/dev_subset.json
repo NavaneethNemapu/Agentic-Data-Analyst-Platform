@@ -1,0 +1,26 @@
+[
+  {
+    "question_id": 1,
+    "db_id": "ecommerce",
+    "question": "How many customers are from the USA?",
+    "SQL": "SELECT count(*) FROM customers WHERE country = 'USA'"
+  },
+  {
+    "question_id": 2,
+    "db_id": "ecommerce",
+    "question": "List the names of products in the Clothing category.",
+    "SQL": "SELECT name FROM products WHERE category = 'Clothing'"
+  },
+  {
+    "question_id": 3,
+    "db_id": "ecommerce",
+    "question": "What is the total number of orders that are Completed?",
+    "SQL": "SELECT count(*) FROM orders WHERE status = 'Completed'"
+  },
+  {
+    "question_id": 4,
+    "db_id": "ecommerce",
+    "question": "What is the email address of First5 Last5?",
+    "SQL": "SELECT email FROM customers WHERE first_name = 'First5' AND last_name = 'Last5'"
+  }
+]

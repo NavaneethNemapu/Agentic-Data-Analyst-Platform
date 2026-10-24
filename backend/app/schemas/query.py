@@ -1,0 +1,34 @@
+from pydantic import BaseModel
+from typing import Any
+
+class QueryRequest(BaseModel):
+    question: str
+    session_id: str | None = None
+    models: dict[str, str] | None = None
+    providers: dict[str, str] | None = None
+
+
+class StepResult(BaseModel):
+    step: str
+    sql: str
+    result: list[dict[str, Any]] | None = None
+    error: str | None = None
+    retries: int = 0
+
+class QueryResponse(BaseModel):
+    session_id: str | None = None
+    question: str
+    pruned_schema: str | None = None
+    plan: list[str] | None = None
+    steps: list[StepResult] | None = None
+    sql: str
+    result: list[dict[str, Any]] | None = None
+    error: str | None = None
+    status: str
+    retries: int = 0
+    explanation: str | None = None
+    chart_type: str | None = None
+    models_used: dict[str, str | None] | None = None
+    providers_used: dict[str, str | None] | None = None
+
+
