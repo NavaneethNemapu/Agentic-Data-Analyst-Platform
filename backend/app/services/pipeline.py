@@ -3,7 +3,8 @@ from app.agents.schema_linker import SchemaLinkerAgent
 from app.agents.query_planner import QueryPlannerAgent
 from app.agents.validator import ValidatorAgent
 from app.db.target import execute_query, get_schema
-from app.db.system_db import SessionLocal, ChatSession, ChatMessage
+from app.db.system_db import SessionLocal, ChatSession, ChatMessage, UserQuery
+from app.services.experience_bank import experience_bank
 import uuid
 
 class WorkflowStateMachine:
@@ -30,7 +31,8 @@ class WorkflowStateMachine:
         session_id: str | None = None,
         progress_callback=None,
         models: dict[str, str] | None = None,
-        providers: dict[str, str] | None = None
+        providers: dict[str, str] | None = None,
+        user_id: str | None = None
     ) -> dict:
         if providers:
             if "schema_linker" in providers:
@@ -70,9 +72,18 @@ class WorkflowStateMachine:
         
         if not session_id:
             session_id = str(uuid.uuid4())
-            new_session = ChatSession(id=session_id)
+            new_session = ChatSession(
+                id=session_id,
+                user_id=user_id,
+                title=question[:45] + ("..." if len(question) > 45 else "")
+            )
             db.add(new_session)
             db.commit()
+        else:
+            existing_sess = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+            if existing_sess and user_id and not existing_sess.user_id:
+                existing_sess.user_id = user_id
+                db.commit()
             
         past_messages = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at).all()
         # Keep the most recent 6 messages to stay well within token limits while retaining rich follow-up context
@@ -98,6 +109,7 @@ class WorkflowStateMachine:
         intermediate_results = []
         final_explanation = None
         final_chart = None
+        retrieved_exemplars = []
         
         for i, step in enumerate(steps):
             context = ""
@@ -106,7 +118,10 @@ class WorkflowStateMachine:
                 
             step_query = f"{context}Current Step: {step}"
             await report(f"Generating SQL for step {i+1}/{len(steps)}: {step}{model_tag(self.sql_generator)}", "info")
-            sql = await self.sql_generator.generate_sql(step_query, pruned_schema, history=history_str)
+            sql, exemplars = await self.sql_generator.generate_sql(step_query, pruned_schema, history=history_str)
+            if exemplars:
+                retrieved_exemplars.extend(exemplars)
+                await report(f"Recalled {len(exemplars)} verified patterns from Analyst Experience Memory", "info")
             
             result = None
             error_msg = None
@@ -125,6 +140,8 @@ class WorkflowStateMachine:
                             raise ValueError(f"Validation failed: {val_data.get('feedback', 'Unknown error')}")
                         final_explanation = val_data.get("explanation", "")
                         final_chart = val_data.get("chart_type", "table")
+                        # Original Contribution: Record newly validated analytical pattern into Experience Bank
+                        experience_bank.record_experience(question, sql)
                         
                     error_msg = None
                     break
@@ -155,6 +172,25 @@ class WorkflowStateMachine:
         await report("Workflow complete.", "success" if overall_status == "success" else "error")
         asst_msg = ChatMessage(session_id=session_id, role="assistant", content=final_exp)
         db.add(asst_msg)
+
+        calculated_confidence = round(0.96 if retrieved_exemplars else (0.91 if sum(s["retries"] for s in executed_steps) == 0 else 0.82), 2)
+        final_sql = executed_steps[-1]["sql"] if executed_steps else ""
+        if user_id:
+            try:
+                user_query_record = UserQuery(
+                    user_id=user_id,
+                    session_id=session_id,
+                    question=question,
+                    sql=final_sql,
+                    chart_type=final_chart or "bar",
+                    confidence=calculated_confidence,
+                    status=overall_status,
+                    retries=sum(s["retries"] for s in executed_steps)
+                )
+                db.add(user_query_record)
+            except Exception as e:
+                print(f"Error logging UserQuery: {e}")
+
         db.commit()
         db.close()
             
@@ -171,6 +207,8 @@ class WorkflowStateMachine:
             "retries": sum(s["retries"] for s in executed_steps),
             "explanation": final_explanation,
             "chart_type": final_chart,
+            "confidence": round(0.96 if retrieved_exemplars else (0.91 if sum(s["retries"] for s in executed_steps) == 0 else 0.82), 2),
+            "memory_exemplars": retrieved_exemplars,
             "models_used": {
                 "schema_linker": getattr(self.schema_linker, "model", None),
                 "query_planner": getattr(self.query_planner, "model", None),

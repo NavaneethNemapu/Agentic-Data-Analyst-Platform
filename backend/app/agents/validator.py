@@ -23,6 +23,10 @@ class ValidatorAgent:
         system_prompt = (
             "You are an expert Senior Data Analyst. Your task is twofold:\n"
             "1. Verify if the generated SQL query and its execution result accurately answer the user's question.\n"
+            "   - If the user asks for records (e.g. customers, orders, categories, top items) and the result set is EMPTY (0 rows), "
+            "mark 'is_valid': false and explain in 'feedback' that string matching may have failed due to casing (e.g. 'completed' vs 'Completed') "
+            "or an overly strict filter, and instruct to use LOWER(column) or re-check table values.\n"
+            "   - If the SQL query selects columns completely unrelated or includes extra unneeded primary keys when names/aggregates were asked, provide corrective feedback.\n"
             "2. Provide a thoughtful, conversational, plain-English explanation that acts like a true analyst:\n"
             "   - If this is a follow-up question (e.g. asking 'why?', comparing to earlier numbers, or drilling down), "
             "synthesize the current results with the conversation history to explain the underlying reasons and drivers.\n"
@@ -42,9 +46,8 @@ class ValidatorAgent:
             f"Result Snippet:\n{sample_result}"
         )
         
-        response = await self.llm.generate(prompt, system_prompt=system_prompt, model=self.model, max_tokens=600)
-        
         try:
+            response = await self.llm.generate(prompt, system_prompt=system_prompt, model=self.model, max_tokens=600)
             text = response.strip()
             if text.startswith("```json"):
                 text = text[7:]

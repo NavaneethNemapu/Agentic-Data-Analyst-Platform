@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.core.config import settings
 from app.api.query import router as query_router
+from app.api.auth import router as auth_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,6 +16,7 @@ app.add_middleware(
 )
 
 app.include_router(query_router, prefix="/api/query")
+app.include_router(auth_router, prefix="/api/auth")
 
 @app.get("/")
 def read_root():
@@ -23,6 +25,64 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+import csv
+import io
+import os
+import re
+import sqlite3
+from fastapi import UploadFile, File
+
+@app.post("/api/upload-dataset")
+async def upload_dataset(file: UploadFile = File(...)):
+    """Upload custom CSV or SQLite database to query dynamically."""
+    filename = file.filename or "uploaded_data"
+    os.makedirs("data", exist_ok=True)
+    
+    if filename.endswith(".csv"):
+        table_name = re.sub(r'[^a-zA-Z0-9_]', '_', os.path.splitext(filename)[0]).lower()
+        content = await file.read()
+        text_stream = io.StringIO(content.decode("utf-8", errors="ignore"))
+        reader = csv.reader(text_stream)
+        headers = next(reader, None)
+        if not headers:
+            return {"error": "CSV file is empty"}
+        clean_headers = [re.sub(r'[^a-zA-Z0-9_]', '_', h.strip().lower()) or f"col_{i}" for i, h in enumerate(headers)]
+        
+        db_path = os.path.abspath("data/uploaded.db")
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        col_defs = ", ".join([f"{h} TEXT" for h in clean_headers])
+        cur.execute(f"DROP TABLE IF EXISTS {table_name}")
+        cur.execute(f"CREATE TABLE {table_name} ({col_defs})")
+        
+        placeholders = ", ".join(["?"] * len(clean_headers))
+        rows = [row[:len(clean_headers)] + [""] * (len(clean_headers) - len(row)) for row in reader]
+        cur.executemany(f"INSERT INTO {table_name} VALUES ({placeholders})", rows)
+        conn.commit()
+        conn.close()
+        
+        settings.TARGET_DB_URL = f"sqlite:///{db_path}"
+        from app.db.target import get_db_info
+        return {"status": "success", "db": get_db_info(), "message": f"Loaded {len(rows)} rows into table '{table_name}'"}
+
+    elif filename.endswith((".sqlite", ".db", ".sqlite3")):
+        db_path = os.path.abspath("data/uploaded.db")
+        content = await file.read()
+        with open(db_path, "wb") as f:
+            f.write(content)
+        settings.TARGET_DB_URL = f"sqlite:///{db_path}"
+        from app.db.target import get_db_info
+        return {"status": "success", "db": get_db_info(), "message": f"Loaded database '{filename}'"}
+    
+    return {"error": "Unsupported file format. Please upload a .csv, .sqlite, or .db file."}
+
+@app.post("/api/reset-dataset")
+def reset_dataset():
+    """Reset target database back to default e-commerce dataset."""
+    settings.TARGET_DB_URL = "sqlite:///./data/target.db"
+    from app.db.target import get_db_info
+    return {"status": "success", "db": get_db_info(), "message": "Restored default e-commerce database"}
 
 @app.get("/api/info")
 def get_system_info():
@@ -44,3 +104,4 @@ def get_system_info():
             "validator": settings.VALIDATOR_MODEL
         }
     }
+

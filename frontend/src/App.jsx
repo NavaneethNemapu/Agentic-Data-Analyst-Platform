@@ -4,7 +4,6 @@ import {
   Database,
   Send,
   Bot,
-  User,
   RotateCcw,
   Code2,
   Table as TableIcon,
@@ -15,14 +14,19 @@ import {
   ChevronUp,
   Check,
   Copy,
-  AlertCircle,
   Loader2,
   Layers,
   ArrowRight,
   Settings,
   X,
-  Cpu
+  Cpu,
+  Upload,
+  Download,
+  LayoutDashboard,
+  LogOut
 } from 'lucide-react';
+import AuthModal from './components/AuthModal';
+import UserDashboard from './components/UserDashboard';
 import {
   BarChart,
   Bar,
@@ -89,6 +93,95 @@ function App() {
   const wsRef = useRef(null);
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [uploadStatus, setUploadStatus] = useState(null);
+
+  // Authentication & View Management State
+  const [activeView, setActiveView] = useState('workspace'); // 'workspace' | 'dashboard'
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('agentic_auth_token') || null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('agentic_user_profile');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState('signin');
+
+  const handleLoginSuccess = (token, user) => {
+    setAuthToken(token);
+    setCurrentUser(user);
+    localStorage.setItem('agentic_auth_token', token);
+    localStorage.setItem('agentic_user_profile', JSON.stringify(user));
+    setIsAuthModalOpen(false);
+  };
+
+  const handleLogout = () => {
+    setAuthToken(null);
+    setCurrentUser(null);
+    localStorage.removeItem('agentic_auth_token');
+    localStorage.removeItem('agentic_user_profile');
+    setActiveView('workspace');
+  };
+
+  useEffect(() => {
+    if (authToken) {
+      fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Invalid token');
+        return res.json();
+      })
+      .then(data => {
+        if (data.user) {
+          setCurrentUser(data.user);
+          localStorage.setItem('agentic_user_profile', JSON.stringify(data.user));
+        }
+      })
+      .catch(() => {
+        setAuthToken(null);
+        setCurrentUser(null);
+        localStorage.removeItem('agentic_auth_token');
+        localStorage.removeItem('agentic_user_profile');
+      });
+    }
+  }, [authToken]);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      setUploadStatus('Uploading & parsing dataset...');
+      const res = await fetch('/api/upload-dataset', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.db) setDbInfo(data.db);
+      setUploadStatus(data.message || 'Dataset loaded successfully!');
+      setTimeout(() => setUploadStatus(null), 5000);
+      handleNewChat();
+    } catch (err) {
+      setUploadStatus('Upload failed: ' + err.message);
+      setTimeout(() => setUploadStatus(null), 5000);
+    }
+  };
+
+  const handleResetDb = async () => {
+    try {
+      setUploadStatus('Resetting database...');
+      const res = await fetch('/api/reset-dataset', { method: 'POST' });
+      const data = await res.json();
+      if (data.db) setDbInfo(data.db);
+      setUploadStatus('Restored default e-commerce database.');
+      setTimeout(() => setUploadStatus(null), 4000);
+      handleNewChat();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // Fetch target DB info and active agent routing on mount
   useEffect(() => {
@@ -128,6 +221,23 @@ function App() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const downloadCSV = (data, filename = 'export.csv') => {
+    if (!data || !data.length) return;
+    const keys = Object.keys(data[0]);
+    const csvRows = [
+      keys.join(','),
+      ...data.map(row => keys.map(k => `"${String(row[k] ?? '').replace(/"/g, '""')}"`).join(','))
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleNewChat = () => {
     setSession(null);
     setMessages([]);
@@ -153,7 +263,7 @@ function App() {
     const q = questionText.trim();
     if (!q || isLoading) return;
 
-    const userMsgId = 'user_' + Date.now();
+    const userMsgId = 'user_' + Math.random().toString(36).slice(2, 11);
     setMessages(prev => [...prev, {
       id: userMsgId,
       role: 'user',
@@ -177,10 +287,14 @@ function App() {
 
       fetch('/api/query/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+        },
         body: JSON.stringify({
           question: q,
           session_id: session,
+          user_id: currentUser?.id,
           models: routingSettings.models,
           providers: routingSettings.providers
         })
@@ -216,6 +330,8 @@ function App() {
         sql: resultData.sql,
         result: resultData.result,
         chart_type: resultData.chart_type || 'table',
+        confidence: resultData.confidence,
+        memory_exemplars: resultData.memory_exemplars,
         plan: resultData.plan,
         steps: resultData.steps,
         models_used: resultData.models_used,
@@ -261,6 +377,8 @@ function App() {
       wsRef.current.send(JSON.stringify({
         question: q,
         session_id: session,
+        user_id: currentUser?.id,
+        token: authToken,
         models: routingSettings.models,
         providers: routingSettings.providers
       }));
@@ -307,16 +425,71 @@ function App() {
     ];
   };
 
-  const renderInlineVisualization = (msg) => {
-    const data = msg.result;
+  const getChartConfig = (data) => {
     if (!data || !Array.isArray(data) || data.length === 0) return null;
+    const sample = data[0];
+    const allKeys = Object.keys(sample);
+    if (allKeys.length === 0) return null;
+
+    // Identify numeric keys (columns where values can be parsed as valid numbers)
+    const numericKeys = allKeys.filter(k => {
+      return data.some(row => {
+        const val = row[k];
+        return val !== null && val !== undefined && val !== '' && !isNaN(Number(val)) && typeof val !== 'boolean';
+      });
+    });
+
+    // Identify categorical / text keys
+    const nonNumericKeys = allKeys.filter(k => !numericKeys.includes(k));
+
+    // Choose Y-Key (numeric metric to plot as height/slice)
+    const metricPreference = ['profit', 'spent', 'revenue', 'rev', 'total', 'amount', 'sales', 'cost', 'price', 'avg', 'count', 'val', 'qty', 'quantity'];
+    let yKey = numericKeys.find(k => metricPreference.some(pref => k.toLowerCase().includes(pref)))
+           || numericKeys.find(k => !k.toLowerCase().endsWith('_id') && k.toLowerCase() !== 'id')
+           || numericKeys[0]
+           || allKeys[allKeys.length - 1];
+
+    // Choose X-Key (categorical label for X-axis)
+    const labelPreference = ['name', 'category', 'country', 'status', 'title', 'date', 'month', 'year'];
+    let xKey = nonNumericKeys.find(k => labelPreference.some(pref => k.toLowerCase().includes(pref)))
+           || nonNumericKeys[0]
+           || allKeys.find(k => k !== yKey)
+           || allKeys[0];
+
+    const hasFirstLast = allKeys.includes('first_name') && allKeys.includes('last_name');
+
+    // Clean and transform rows so Recharts receives guaranteed numeric types
+    const chartData = data.map((row, idx) => {
+      const clean = { ...row };
+      numericKeys.forEach(k => {
+        clean[k] = Number(row[k]) || 0;
+      });
+      if (hasFirstLast) {
+        clean['display_label'] = `${row.first_name || ''} ${row.last_name || ''}`.trim() || `Customer ${idx + 1}`;
+      } else {
+        clean['display_label'] = String(row[xKey] ?? `Item ${idx + 1}`);
+      }
+      return clean;
+    });
+
+    const activeXKey = hasFirstLast ? 'display_label' : xKey;
+    const formattedLabel = (yKey || 'Value').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    return {
+      chartData,
+      xKey: activeXKey,
+      yKey,
+      labelName: formattedLabel
+    };
+  };
+
+  const renderInlineVisualization = (msg) => {
+    const rawData = msg.result;
+    if (!rawData || !Array.isArray(rawData) || rawData.length === 0) return null;
 
     const currentMode = viewModes[msg.id] || (msg.chart_type === 'table' ? 'table' : 'chart');
-    const keys = Object.keys(data[0]);
-    if (keys.length === 0) return null;
-
-    const xKey = keys[0];
-    const yKey = keys.length > 1 ? keys[1] : keys[0];
+    const allKeys = Object.keys(rawData[0]);
+    if (allKeys.length === 0) return null;
 
     if (currentMode === 'table') {
       return (
@@ -324,13 +497,13 @@ function App() {
           <table className="modern-data-table">
             <thead>
               <tr>
-                {keys.map(k => <th key={k}>{k.replace(/_/g, ' ')}</th>)}
+                {allKeys.map(k => <th key={k}>{k.replace(/_/g, ' ')}</th>)}
               </tr>
             </thead>
             <tbody>
-              {data.map((row, i) => (
+              {rawData.map((row, i) => (
                 <tr key={i}>
-                  {keys.map(k => (
+                  {allKeys.map(k => (
                     <td key={k}>
                       {typeof row[k] === 'number' 
                         ? Number(row[k]).toLocaleString() 
@@ -345,6 +518,30 @@ function App() {
       );
     }
 
+    const config = getChartConfig(rawData);
+    if (!config || !config.yKey) {
+      // Fallback to table if no valid metric exists to chart
+      return (
+        <div className="table-scroll-container">
+          <table className="modern-data-table">
+            <thead>
+              <tr>
+                {allKeys.map(k => <th key={k}>{k.replace(/_/g, ' ')}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {rawData.map((row, i) => (
+                <tr key={i}>
+                  {allKeys.map(k => <td key={k}>{String(row[k] ?? '-')}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    const { chartData, xKey, yKey, labelName } = config;
     const chartType = msg.chart_type || 'bar';
 
     if (chartType === 'pie') {
@@ -353,7 +550,7 @@ function App() {
           <ResponsiveContainer width="100%" height={290}>
             <PieChart>
               <Pie
-                data={data}
+                data={chartData}
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
@@ -363,11 +560,12 @@ function App() {
                 nameKey={xKey}
                 label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
               >
-                {data.map((_, index) => (
+                {chartData.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip 
+                formatter={(val) => [typeof val === 'number' ? val.toLocaleString() : val, labelName]}
                 contentStyle={{ 
                   backgroundColor: '#FFFFFF', 
                   borderRadius: '10px', 
@@ -387,11 +585,18 @@ function App() {
       return (
         <div className="chart-wrapper">
           <ResponsiveContainer width="100%" height={290}>
-            <LineChart data={data} margin={{ top: 15, right: 20, left: 10, bottom: 20 }}>
+            <LineChart data={chartData} margin={{ top: 15, right: 20, left: 15, bottom: 25 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
               <XAxis dataKey={xKey} stroke="#64748B" tick={{ fontSize: 12 }} tickLine={false} />
-              <YAxis stroke="#64748B" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+              <YAxis 
+                stroke="#64748B" 
+                tick={{ fontSize: 12 }} 
+                tickLine={false} 
+                axisLine={false} 
+                tickFormatter={(val) => typeof val === 'number' ? (val >= 1000 ? `${(val/1000).toFixed(1)}k` : val) : val}
+              />
               <Tooltip 
+                formatter={(val) => [typeof val === 'number' ? val.toLocaleString() : val, labelName]}
                 contentStyle={{ 
                   backgroundColor: '#FFFFFF', 
                   borderRadius: '10px', 
@@ -405,8 +610,8 @@ function App() {
                 dataKey={yKey} 
                 stroke="#4F46E5" 
                 strokeWidth={3} 
-                dot={{ r: 4, fill: '#4F46E5', strokeWidth: 2, stroke: '#FFFFFF' }}
-                activeDot={{ r: 6, fill: '#4338CA' }}
+                dot={{ r: 5, fill: '#4F46E5', strokeWidth: 2, stroke: '#FFFFFF' }}
+                activeDot={{ r: 7, fill: '#4338CA' }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -417,11 +622,18 @@ function App() {
     return (
       <div className="chart-wrapper">
         <ResponsiveContainer width="100%" height={290}>
-          <BarChart data={data} margin={{ top: 15, right: 20, left: 10, bottom: 20 }}>
+          <BarChart data={chartData} margin={{ top: 15, right: 20, left: 15, bottom: 25 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
             <XAxis dataKey={xKey} stroke="#64748B" tick={{ fontSize: 12 }} tickLine={false} />
-            <YAxis stroke="#64748B" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+            <YAxis 
+              stroke="#64748B" 
+              tick={{ fontSize: 12 }} 
+              tickLine={false} 
+              axisLine={false} 
+              tickFormatter={(val) => typeof val === 'number' ? (val >= 1000 ? `${(val/1000).toFixed(1)}k` : val) : val}
+            />
             <Tooltip 
+              formatter={(val) => [typeof val === 'number' ? val.toLocaleString() : val, labelName]}
               contentStyle={{ 
                 backgroundColor: '#FFFFFF', 
                 borderRadius: '10px', 
@@ -431,7 +643,7 @@ function App() {
               }} 
             />
             <Bar dataKey={yKey} fill="#4F46E5" radius={[6, 6, 0, 0]}>
-              {data.map((_, index) => (
+              {chartData.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
               ))}
             </Bar>
@@ -482,7 +694,42 @@ function App() {
           </div>
         </div>
 
+        {/* View Switcher: Workspace vs My Dashboard */}
+        <div className="nav-view-switcher">
+          <button 
+            type="button"
+            className={`nav-view-btn ${activeView === 'workspace' ? 'active' : ''}`}
+            onClick={() => setActiveView('workspace')}
+          >
+            <Sparkles size={14} />
+            <span>Workspace</span>
+          </button>
+          <button 
+            type="button"
+            className={`nav-view-btn ${activeView === 'dashboard' ? 'active' : ''}`}
+            onClick={() => {
+              if (!currentUser) {
+                setAuthModalMode('signin');
+                setIsAuthModalOpen(true);
+              } else {
+                setActiveView('dashboard');
+              }
+            }}
+          >
+            <LayoutDashboard size={14} />
+            <span>My Dashboard</span>
+          </button>
+        </div>
+
         <div className="nav-actions">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".csv,.sqlite,.db,.sqlite3"
+            style={{ display: 'none' }}
+          />
+
           <div className="status-badge" title="Active Target Database">
             <div className="status-dot" />
             <span>{dbInfo.dialect}</span>
@@ -496,6 +743,17 @@ function App() {
           <button 
             type="button" 
             className="model-pill" 
+            onClick={() => fileInputRef.current?.click()}
+            style={{ cursor: 'pointer', border: 'none' }}
+            title="Upload custom CSV or SQLite database to query dynamically"
+          >
+            <Upload size={14} />
+            <span>Upload Data</span>
+          </button>
+
+          <button 
+            type="button" 
+            className="model-pill" 
             onClick={() => setIsRoutingModalOpen(true)}
             style={{ cursor: 'pointer', border: 'none' }}
             title="Configure LLM APIs & Models for each Agent"
@@ -505,20 +763,104 @@ function App() {
             <Settings size={12} style={{ marginLeft: '4px', opacity: 0.7 }} />
           </button>
 
-          <button 
-            type="button" 
-            className="btn-new-chat" 
-            onClick={handleNewChat}
-            title="Start a fresh conversation session"
-          >
-            <RotateCcw size={15} />
-            <span>New Chat</span>
-          </button>
+          {activeView === 'workspace' && (
+            <button 
+              type="button" 
+              className="btn-new-chat" 
+              onClick={handleNewChat}
+              title="Start a fresh conversation session"
+            >
+              <RotateCcw size={15} />
+              <span>New Chat</span>
+            </button>
+          )}
+
+          {/* User Authentication Status / Profile Chip */}
+          {currentUser ? (
+            <div className="user-profile-chip" title={`Signed in as ${currentUser.email}`}>
+              <div className="user-avatar-badge">
+                {currentUser.username ? currentUser.username.charAt(0).toUpperCase() : 'A'}
+              </div>
+              <span className="user-name-text">{currentUser.username}</span>
+              <span className="user-role-tag">{currentUser.role || 'Analyst'}</span>
+              <button className="btn-logout" onClick={handleLogout} title="Sign Out">
+                <LogOut size={14} />
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                type="button"
+                className="btn-auth-signin" 
+                onClick={() => { setAuthModalMode('signin'); setIsAuthModalOpen(true); }}
+              >
+                Sign In
+              </button>
+              <button 
+                type="button"
+                className="btn-auth-signup" 
+                onClick={() => { setAuthModalMode('signup'); setIsAuthModalOpen(true); }}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Main Chat Stream Container */}
-      <main className="chat-viewport">
+      {uploadStatus && (
+        <div style={{
+          backgroundColor: 'var(--brand-primary)',
+          color: '#ffffff',
+          padding: '8px 16px',
+          fontSize: '0.82rem',
+          fontWeight: '500',
+          textAlign: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+        }}>
+          <Sparkles size={14} />
+          <span>{uploadStatus}</span>
+          <button 
+            onClick={handleResetDb} 
+            style={{
+              marginLeft: '12px',
+              background: 'rgba(255,255,255,0.2)',
+              border: 'none',
+              color: '#ffffff',
+              borderRadius: '4px',
+              padding: '2px 8px',
+              fontSize: '0.75rem',
+              cursor: 'pointer'
+            }}
+          >
+            Reset to Default DB
+          </button>
+        </div>
+      )}
+
+      {/* Dynamic View Switch: Personal Analytics Dashboard vs Workspace */}
+      {activeView === 'dashboard' && currentUser ? (
+        <UserDashboard
+          authToken={authToken}
+          currentUser={currentUser}
+          onOpenWorkspace={() => setActiveView('workspace')}
+          onRunQuery={(q) => {
+            setActiveView('workspace');
+            executeQuery(q);
+          }}
+          onResumeSession={(sessId) => {
+            setSession(sessId);
+            setActiveView('workspace');
+          }}
+        />
+      ) : (
+        <>
+          {/* Main Chat Stream Container */}
+          <main className="chat-viewport">
         <div className="chat-column">
           {/* Welcome Screen when no messages */}
           {messages.length === 0 && (
@@ -584,6 +926,16 @@ function App() {
                       <span className={`assistant-badge ${msg.isError ? 'error' : ''}`}>
                         {msg.isError ? 'Error' : 'Verified Insight'}
                       </span>
+                      {msg.confidence && (
+                        <span className="assistant-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }} title="Execution Confidence Score">
+                          {Math.round(msg.confidence * 100)}% Confidence
+                        </span>
+                      )}
+                      {msg.memory_exemplars && msg.memory_exemplars.length > 0 && (
+                        <span className="assistant-badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', borderColor: 'rgba(99, 102, 241, 0.3)' }} title="Recalled verified golden pattern from Analyst Experience Memory Bank">
+                          🧠 Memory Match
+                        </span>
+                      )}
                     </div>
 
                     <div className="assistant-actions">
@@ -606,6 +958,15 @@ function App() {
                           >
                             <TableIcon size={13} />
                             <span>Table ({msg.result.length})</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-pill-toggle"
+                            onClick={() => downloadCSV(msg.result, `query_result_${msg.id}.csv`)}
+                            title="Export data as CSV file"
+                          >
+                            <Download size={13} />
+                            <span>CSV</span>
                           </button>
                         </div>
                       )}
@@ -789,6 +1150,8 @@ function App() {
           </p>
         </div>
       </div>
+        </>
+      )}
 
       {/* Multi-API Agent Routing Configuration Modal */}
       {isRoutingModalOpen && (
@@ -856,6 +1219,13 @@ function App() {
           </div>
         </div>
       )}
+      {/* Authentication Dialog Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={handleLoginSuccess}
+        initialMode={authModalMode}
+      />
     </div>
   );
 }

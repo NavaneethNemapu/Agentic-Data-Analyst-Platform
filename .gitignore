@@ -39,3 +39,9 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Runtime Uploads & SQLite artifacts
+backend/data/uploaded.db
+data/uploaded.db
+*.db-journal
+

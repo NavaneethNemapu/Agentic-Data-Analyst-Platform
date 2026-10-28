@@ -1,0 +1,57 @@
+{
+  "monolithic": {
+    "name": "1. Monolithic Single-LLM (Direct Prompt, No Agents)",
+    "overall_accuracy": 52.4,
+    "valid_sql_rate": 85.7,
+    "avg_latency": 1.52,
+    "total_retries": 0,
+    "healed_errors": 0,
+    "tier_accuracy": {
+      "Easy": 100.0,
+      "Medium": 50.0,
+      "Hard": 20.0,
+      "Extra Hard": 0.0
+    },
+    "error_taxonomy": {
+      "Incorrect Join / Filter Constraint": 2,
+      "Empty Result (Filter Mismatch)": 3,
+      "Aggregation / Value Mismatch": 2,
+      "Database Execution Error": 3
+    }
+  },
+  "all_groq_agentic": {
+    "name": "2. Agentic Pipeline: All-Groq (20B + 27B + 120B)",
+    "overall_accuracy": 90.5,
+    "valid_sql_rate": 100.0,
+    "avg_latency": 6.99,
+    "total_retries": 3,
+    "healed_errors": 0,
+    "tier_accuracy": {
+      "Easy": 100.0,
+      "Medium": 100.0,
+      "Hard": 80.0,
+      "Extra Hard": 50.0
+    },
+    "error_taxonomy": {
+      "Database Execution Error": 1,
+      "Empty Result (Filter Mismatch)": 1
+    }
+  },
+  "hybrid_agentic": {
+    "name": "3. Agentic Pipeline: Heterogeneous Hybrid (Groq 120B + Gemini 3.6 Analyst)",
+    "overall_accuracy": 33.3,
+    "valid_sql_rate": 100.0,
+    "avg_latency": 11.55,
+    "total_retries": 29,
+    "healed_errors": 1,
+    "tier_accuracy": {
+      "Easy": 50.0,
+      "Medium": 37.5,
+      "Hard": 20.0,
+      "Extra Hard": 0.0
+    },
+    "error_taxonomy": {
+      "Database Execution Error": 14
+    }
+  }
+}
