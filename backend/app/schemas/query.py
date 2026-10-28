@@ -10,8 +10,8 @@ class QueryRequest(BaseModel):
 
 
 class StepResult(BaseModel):
-    step: str
-    sql: str
+    step: Any
+    sql: str = ""
     result: list[dict[str, Any]] | None = None
     error: str | None = None
     retries: int = 0
@@ -20,9 +20,9 @@ class QueryResponse(BaseModel):
     session_id: str | None = None
     question: str
     pruned_schema: str | None = None
-    plan: list[str] | None = None
+    plan: list[Any] | None = None
     steps: list[StepResult] | None = None
-    sql: str
+    sql: str = ""
     result: list[dict[str, Any]] | None = None
     error: str | None = None
     status: str

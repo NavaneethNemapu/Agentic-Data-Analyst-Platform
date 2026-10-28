@@ -102,6 +102,10 @@ class WorkflowStateMachine:
         
         await report(f"Planning query steps...{model_tag(self.query_planner)}", "info")
         steps = await self.query_planner.plan(question, pruned_schema, history=history_str)
+        # Guarantee all planned steps are clean strings
+        steps = [str(s.get("step") or s.get("description") or s) if isinstance(s, dict) else str(s) for s in steps] if isinstance(steps, list) else [question]
+        if not steps:
+            steps = [question]
         
         executed_steps = []
         overall_status = "success"
@@ -153,9 +157,9 @@ class WorkflowStateMachine:
                         sql = await self.sql_generator.correct_sql(sql, error_msg, step_query, pruned_schema, history=history_str)
             
             step_data = {
-                "step": step,
-                "sql": sql,
-                "result": result,
+                "step": str(step),
+                "sql": str(sql or ""),
+                "result": result if isinstance(result, list) else [],
                 "error": error_msg,
                 "retries": retries
             }

@@ -42,7 +42,19 @@ class QueryPlannerAgent:
             
             steps = json.loads(text.strip())
             if isinstance(steps, list):
-                return steps
+                cleaned = []
+                for s in steps:
+                    if isinstance(s, str):
+                        cleaned.append(s)
+                    elif isinstance(s, dict):
+                        cleaned.append(str(s.get("step") or s.get("description") or s.get("action") or next(iter(s.values()), str(s))))
+                    else:
+                        cleaned.append(str(s))
+                return cleaned if cleaned else [question]
+            elif isinstance(steps, dict):
+                arr = steps.get("steps") or steps.get("plan")
+                if isinstance(arr, list):
+                    return [str(s.get("step", s) if isinstance(s, dict) else s) for s in arr]
             return [question]
-        except json.JSONDecodeError:
+        except Exception:
             return [question]
