@@ -29,6 +29,7 @@ class QueryResponse(BaseModel):
     retries: int = 0
     explanation: str | None = None
     chart_type: str | None = None
+    suggestions: list[str] | None = None
     confidence: float | None = None
     memory_exemplars: list[dict[str, Any]] | None = None
     models_used: dict[str, str | None] | None = None

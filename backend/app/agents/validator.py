@@ -32,11 +32,13 @@ class ValidatorAgent:
             "synthesize the current results with the conversation history to explain the underlying reasons and drivers.\n"
             "   - Highlight key trends, notable anomalies, top contributors, or business takeaways rather than just reciting raw rows.\n"
             "   - Be direct, professional, and conversational.\n"
-            "Output ONLY a valid JSON object with four keys:\n"
+            "3. Propose 3 to 4 smart, relevant follow-up questions ('suggestions') that logically continue or drill down into this specific analysis (e.g. investigating top drivers, comparing against benchmarks/other periods, or drilling into the leading segment).\n"
+            "Output ONLY a valid JSON object with five keys:\n"
             '"is_valid": boolean,\n'
             '"feedback": string (corrective feedback if invalid, or empty string if valid),\n'
             '"explanation": string (rich, conversational analytical explanation with insights and answers to follow-ups),\n'
-            '"chart_type": string (suggested chart type: "bar", "line", "pie", "table", "none")'
+            '"chart_type": string (suggested chart type: "bar", "line", "pie", "table", "none"),\n'
+            '"suggestions": list of 3-4 concise string questions specifically exploring the current findings'
         )
         sample_result = str(result)[:1500]
         prompt = (
@@ -47,7 +49,7 @@ class ValidatorAgent:
         )
         
         try:
-            response = await self.llm.generate(prompt, system_prompt=system_prompt, model=self.model, max_tokens=600)
+            response = await self.llm.generate(prompt, system_prompt=system_prompt, model=self.model, max_tokens=650)
             text = response.strip()
             if text.startswith("```json"):
                 text = text[7:]
@@ -57,16 +59,20 @@ class ValidatorAgent:
                 text = text[:-3]
             
             data = json.loads(text.strip())
+            raw_sugg = data.get("suggestions", [])
+            suggestions = [str(s).strip() for s in raw_sugg if isinstance(s, (str, int, float)) and str(s).strip()][:4] if isinstance(raw_sugg, list) else []
             return {
                 "is_valid": bool(data.get("is_valid", True)),
                 "feedback": data.get("feedback", ""),
                 "explanation": data.get("explanation", "Here are your results."),
-                "chart_type": data.get("chart_type", "table")
+                "chart_type": data.get("chart_type", "table"),
+                "suggestions": suggestions
             }
         except Exception:
             return {
                 "is_valid": True,
                 "feedback": "",
                 "explanation": "Here are your results.",
-                "chart_type": "table"
+                "chart_type": "table",
+                "suggestions": []
             }

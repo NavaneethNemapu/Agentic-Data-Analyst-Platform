@@ -58,5 +58,11 @@
     "sql": "SELECT \n    p.category,\n    ROUND(SUM(oi.quantity * oi.unit_price), 2) AS category_sales,\n    ROUND((SELECT SUM(oi2.quantity * oi2.unit_price) FROM order_items oi2), 2) AS overall_total\nFROM order_items oi\nJOIN products p ON oi.product_id = p.product_id\nGROUP BY p.category\nORDER BY category_sales DESC;",
     "strategy": "validated_execution",
     "created_at": 1793168915.947802
+  },
+  {
+    "question": "Show count of orders grouped by status",
+    "sql": "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status",
+    "strategy": "validated_execution",
+    "created_at": 1793169636.1077268
   }
 ]
