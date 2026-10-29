@@ -84,6 +84,35 @@ def reset_dataset():
     from app.db.target import get_db_info
     return {"status": "success", "db": get_db_info(), "message": "Restored default e-commerce database"}
 
+from pydantic import BaseModel
+
+class ConnectDatabaseRequest(BaseModel):
+    db_url: str
+
+@app.post("/api/connect-database")
+def connect_database(req: ConnectDatabaseRequest):
+    """Connect dynamically to an external PostgreSQL, MySQL, or custom SQLite database URL from the web UI."""
+    url = req.db_url.strip()
+    if not url:
+        return {"status": "error", "message": "Database connection URL cannot be empty."}
+        
+    try:
+        from sqlalchemy import create_engine
+        test_engine = create_engine(url)
+        with test_engine.connect() as conn:
+            pass  # Test connection handshake
+            
+        settings.TARGET_DB_URL = url
+        from app.db.target import get_db_info
+        info = get_db_info()
+        return {
+            "status": "success",
+            "db": info,
+            "message": f"Successfully connected to {info['dialect']} ({len(info['tables'])} tables indexed)"
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Connection failed: {str(e)}"}
+
 @app.get("/api/info")
 def get_system_info():
     from app.db.target import get_db_info

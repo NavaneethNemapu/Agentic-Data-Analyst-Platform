@@ -255,6 +255,28 @@ function App() {
     }
   };
 
+  const handleConnectDbUrl = async (url) => {
+    try {
+      const res = await fetch('/api/connect-database', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ db_url: url })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        if (data.db) setDbInfo(data.db);
+        setUploadStatus(data.message);
+        setTimeout(() => setUploadStatus(null), 5000);
+        handleNewChat();
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.message || 'Failed to connect to database' };
+      }
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  };
+
   // Fetch target DB info and active agent routing on mount
   useEffect(() => {
     fetch('/api/info')
@@ -1629,6 +1651,7 @@ function App() {
         dbInfo={dbInfo}
         onUploadClick={() => fileInputRef.current?.click()}
         onResetDb={handleResetDb}
+        onConnectDbUrl={handleConnectDbUrl}
         currentUser={currentUser}
         onLogout={handleLogout}
         onOpenAuth={(mode) => {

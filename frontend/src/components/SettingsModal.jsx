@@ -36,6 +36,7 @@ export default function SettingsModal({
   dbInfo,
   onUploadClick,
   onResetDb,
+  onConnectDbUrl,
   currentUser,
   onLogout,
   onOpenAuth,
@@ -49,7 +50,31 @@ export default function SettingsModal({
     return localStorage.getItem('agentic_default_chart') || 'auto';
   });
 
+  // Live database connection state
+  const [dbConnectionUrl, setDbConnectionUrl] = useState('');
+  const [isConnectingDb, setIsConnectingDb] = useState(false);
+  const [dbConnectFeedback, setDbConnectFeedback] = useState(null);
+
   if (!isOpen) return null;
+
+  const handleConnectLiveDb = async (e) => {
+    e.preventDefault();
+    if (!dbConnectionUrl.trim() || !onConnectDbUrl) return;
+    setIsConnectingDb(true);
+    setDbConnectFeedback(null);
+    try {
+      const result = await onConnectDbUrl(dbConnectionUrl.trim());
+      if (result.success) {
+        setDbConnectFeedback({ type: 'success', text: result.message });
+      } else {
+        setDbConnectFeedback({ type: 'error', text: result.message });
+      }
+    } catch (err) {
+      setDbConnectFeedback({ type: 'error', text: err.message });
+    } finally {
+      setIsConnectingDb(false);
+    }
+  };
 
   const handleToggleAutoViz = () => {
     const next = !autoVisualize;
@@ -353,6 +378,53 @@ export default function SettingsModal({
                       <span>Reset to Default E-Commerce DB</span>
                     </button>
                   </div>
+                </div>
+
+                {/* Connect Live Database Server (PostgreSQL, MySQL, SQLite) */}
+                <div className="settings-section">
+                  <label className="section-label">Connect Live Database Server</label>
+                  <p className="section-help">
+                    Connect directly to PostgreSQL, MySQL, or custom database URL without editing code or <code>.env</code>.
+                  </p>
+                  <form onSubmit={handleConnectLiveDb} className="db-connect-form">
+                    <div className="input-group">
+                      <input
+                        type="text"
+                        className="settings-text-input"
+                        placeholder="e.g. postgresql://user:password@localhost:5432/my_analytics_db"
+                        value={dbConnectionUrl}
+                        onChange={(e) => setDbConnectionUrl(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+                      <button
+                        type="submit"
+                        className="btn-settings-action primary"
+                        disabled={isConnectingDb || !dbConnectionUrl.trim()}
+                      >
+                        {isConnectingDb ? 'Testing Connection...' : 'Connect & Switch Engine'}
+                      </button>
+                    </div>
+                    {dbConnectFeedback && (
+                      <div className={`db-connect-feedback ${dbConnectFeedback.type}`} style={{
+                        marginTop: '10px',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        backgroundColor: dbConnectFeedback.type === 'success' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                        color: dbConnectFeedback.type === 'success' ? '#22c55e' : '#ef4444',
+                        border: `1px solid ${dbConnectFeedback.type === 'success' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`
+                      }}>
+                        {dbConnectFeedback.text}
+                      </div>
+                    )}
+                    <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                      <strong>Example URLs:</strong><br />
+                      • PostgreSQL: <code>postgresql://user:password@localhost:5432/analytics_db</code><br />
+                      • MySQL: <code>mysql+pymysql://user:password@localhost:3306/analytics_db</code><br />
+                      • SQLite: <code>sqlite:///./data/custom.db</code>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}
