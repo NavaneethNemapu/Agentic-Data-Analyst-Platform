@@ -221,9 +221,130 @@ def toggle_pin(query_id: int, user: User = Depends(get_current_user_required), d
     db.commit()
     return {"id": q.id, "is_pinned": q.is_pinned == 1}
 
+class SessionUpdateRequest(BaseModel):
+    title: str
+
+@router.get("/sessions")
+def get_sessions(user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
+    """Retrieve recent chat sessions for the active user or recent workspace sessions."""
+    if user:
+        sessions = db.query(ChatSession).filter(
+            (ChatSession.user_id == user.id) | (ChatSession.user_id == None)
+        ).order_by(ChatSession.updated_at.desc(), ChatSession.created_at.desc()).limit(50).all()
+    else:
+        sessions = db.query(ChatSession).order_by(
+            ChatSession.updated_at.desc(), ChatSession.created_at.desc()
+        ).limit(30).all()
+
+    result = []
+    for s in sessions:
+        msg_count = db.query(ChatMessage).filter(ChatMessage.session_id == s.id).count()
+        last_msg = db.query(ChatMessage).filter(ChatMessage.session_id == s.id).order_by(ChatMessage.created_at.desc()).first()
+        result.append({
+            "id": s.id,
+            "title": s.title or "Analysis Session",
+            "message_count": msg_count,
+            "snippet": last_msg.content[:80] if last_msg else "",
+            "created_at": s.created_at.isoformat() if s.created_at else "",
+            "updated_at": s.updated_at.isoformat() if s.updated_at else (s.created_at.isoformat() if s.created_at else "")
+        })
+    return {"sessions": result}
+
+@router.get("/sessions/{session_id}")
+def get_session_details(session_id: str, db: Session = Depends(get_db)):
+    """Retrieve full message history and query visualizations for a specific session."""
+    sess = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    messages = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).all()
+    queries = db.query(UserQuery).filter(UserQuery.session_id == session_id).order_by(UserQuery.created_at.asc()).all()
+    
+    from app.db.target import execute_query
+    
+    query_map = {}
+    for q in queries:
+        query_map[q.question.strip().lower()] = q
+        
+    formatted_messages = []
+    if not messages and queries:
+        for q in queries:
+            formatted_messages.append({
+                "id": f"u_{q.id}",
+                "role": "user",
+                "content": q.question,
+                "timestamp": q.created_at.strftime("%I:%M %p") if q.created_at else ""
+            })
+            res = None
+            if q.sql:
+                try:
+                    res = execute_query(q.sql)
+                except Exception:
+                    pass
+            formatted_messages.append({
+                "id": f"asst_{q.id}",
+                "role": "assistant",
+                "content": f"Verified insight from your analysis session.",
+                "sql": q.sql,
+                "result": res if isinstance(res, list) else None,
+                "chart_type": q.chart_type or "bar",
+                "confidence": q.confidence or 0.95,
+                "isError": q.status == "error",
+                "timestamp": q.created_at.strftime("%I:%M %p") if q.created_at else ""
+            })
+    else:
+        last_user_question = None
+        for m in messages:
+            msg_data = {
+                "id": f"msg_{m.id}",
+                "role": m.role,
+                "content": m.content,
+                "timestamp": m.created_at.strftime("%I:%M %p") if m.created_at else ""
+            }
+            if m.role == "user":
+                last_user_question = m.content
+            elif m.role == "assistant":
+                matched_q = None
+                if last_user_question:
+                    matched_q = query_map.get(last_user_question.strip().lower())
+                if not matched_q and queries:
+                    matched_q = queries[-1]
+                if matched_q:
+                    msg_data["sql"] = matched_q.sql
+                    msg_data["chart_type"] = matched_q.chart_type or "bar"
+                    msg_data["confidence"] = matched_q.confidence
+                    msg_data["isError"] = matched_q.status == "error"
+                    if matched_q.sql:
+                        try:
+                            res = execute_query(matched_q.sql)
+                            if isinstance(res, list):
+                                msg_data["result"] = res
+                        except Exception:
+                            pass
+            formatted_messages.append(msg_data)
+            
+    return {
+        "id": sess.id,
+        "title": sess.title,
+        "created_at": sess.created_at.isoformat() if sess.created_at else "",
+        "messages": formatted_messages
+    }
+
+@router.patch("/sessions/{session_id}")
+def update_session(session_id: str, req: SessionUpdateRequest, db: Session = Depends(get_db)):
+    sess = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    sess.title = req.title.strip() or sess.title
+    db.commit()
+    return {"status": "success", "id": sess.id, "title": sess.title}
+
 @router.delete("/sessions/{session_id}")
-def delete_session(session_id: str, user: User = Depends(get_current_user_required), db: Session = Depends(get_db)):
-    sess = db.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user.id).first()
+def delete_session(session_id: str, user: Optional[User] = Depends(get_current_user_optional), db: Session = Depends(get_db)):
+    query = db.query(ChatSession).filter(ChatSession.id == session_id)
+    if user:
+        query = query.filter((ChatSession.user_id == user.id) | (ChatSession.user_id == None))
+    sess = query.first()
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
     db.delete(sess)

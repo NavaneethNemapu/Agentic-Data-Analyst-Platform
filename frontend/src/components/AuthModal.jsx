@@ -23,7 +23,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
       : { username_or_email: username, password };
 
     try {
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -48,7 +48,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
     setIsLoading(true);
     // Attempt login as demo analyst; if not existing, sign up demo user
     try {
-      let res = await fetch('http://localhost:8000/api/auth/login', {
+      let res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -59,7 +59,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = 's
 
       if (!res.ok) {
         // Create demo analyst
-        res = await fetch('http://localhost:8000/api/auth/signup', {
+        res = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

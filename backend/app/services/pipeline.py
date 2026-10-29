@@ -160,6 +160,62 @@ class WorkflowStateMachine:
         await report("Fetching schema...", "info")
         full_schema = get_schema()
         
+        # Check if question is a general conversation or knowledge query (unrelated to database)
+        import re
+        q_lower = question.strip().lower()
+        schema_tables = [m.lower() for m in re.findall(r"CREATE\s+TABLE\s+([a-zA-Z0-9_]+)", full_schema, re.IGNORECASE)]
+        
+        is_greeting = any(q_lower == g or q_lower.startswith(g + " ") or q_lower.startswith(g + "!") or q_lower.startswith(g + "?") 
+                          for g in ["hi", "hello", "hey", "howdy", "who are you", "what can you do", "help", "thanks", "thank you", "good morning", "good evening"])
+        
+        is_general_knowledge = any(q_lower.startswith(p) for p in [
+            "what is the capital", "who is the", "who was the", "who wrote", "tell me about",
+            "what is the definition", "define ", "tell me a joke", "what is 2+", "what is 1+"
+        ])
+        
+        data_keywords = ["order", "customer", "product", "sales", "revenue", "price", "category", "count", "sum", "average", "avg", "total", "top", "trend", "month", "status", "spent", "profit", "margin", "rows", "column", "data", "table", "database"]
+        has_data_intent = any(t in q_lower for t in schema_tables) or any(k in q_lower for k in data_keywords)
+        
+        if (is_greeting or is_general_knowledge) and not has_data_intent:
+            await report("Answering general question directly...", "info")
+            direct_ans = await self.validator.llm.generate(
+                f"You are a helpful Senior Data Analyst and AI assistant. Answer the user's question directly, concisely, and conversationally in 1-3 sentences without producing SQL code or markdown tables.\n\nUser Question: {question}",
+                max_tokens=400
+            )
+            final_exp = direct_ans.strip()
+            asst_msg = ChatMessage(session_id=session_id, role="assistant", content=final_exp)
+            db.add(asst_msg)
+            db.commit()
+            db.close()
+            
+            return {
+                "session_id": session_id,
+                "question": question,
+                "pruned_schema": "",
+                "plan": [],
+                "steps": [],
+                "status": "success",
+                "error": None,
+                "sql": "",
+                "result": None,
+                "retries": 0,
+                "explanation": final_exp,
+                "chart_type": "none",
+                "suggestions": [
+                    "Show total sales by category",
+                    "Who are the top 5 customers by spending?",
+                    "Which products have the highest profit margins?"
+                ],
+                "confidence": 1.0,
+                "memory_exemplars": [],
+                "models_used": {
+                    "validator": getattr(self.validator, "model", None)
+                },
+                "providers_used": {
+                    "validator": getattr(self.validator, "provider", None)
+                }
+            }
+        
         await report(f"Linking relevant schema tables...{model_tag(self.schema_linker)}", "info")
         pruned_schema = await self.schema_linker.link_schema(question, full_schema, history=history_str)
         

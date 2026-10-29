@@ -32,7 +32,11 @@ class ValidatorAgent:
             "synthesize the current results with the conversation history to explain the underlying reasons and drivers.\n"
             "   - Highlight key trends, notable anomalies, top contributors, or business takeaways rather than just reciting raw rows.\n"
             "   - Be direct, professional, and conversational.\n"
-            "3. Propose 3 to 4 smart, relevant follow-up questions ('suggestions') that logically continue or drill down into this specific analysis (e.g. investigating top drivers, comparing against benchmarks/other periods, or drilling into the leading segment).\n"
+            "3. Propose 3 to 4 smart, relevant follow-up questions ('suggestions') that logically continue or drill down into this specific analysis.\n"
+            "4. Visualization format rule:\n"
+            "   - For single-number, single-word, or one-line answers (e.g. a single total count, a name, a scalar number), or general questions, ALWAYS set 'chart_type': 'none'.\n"
+            "   - Only suggest 'bar', 'line', or 'pie' when there are at least two distinct data rows with numeric values to compare.\n"
+            "   - If tabular breakdown is not useful or it's a simple scalar, set 'chart_type': 'none'.\n"
             "Output ONLY a valid JSON object with five keys:\n"
             '"is_valid": boolean,\n'
             '"feedback": string (corrective feedback if invalid, or empty string if valid),\n'

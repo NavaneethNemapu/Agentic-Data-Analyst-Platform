@@ -47,7 +47,7 @@ export default function UserDashboard({ authToken, currentUser, onOpenWorkspace,
     }
     setError(null);
     try {
-      const res = await fetch('http://localhost:8000/api/auth/dashboard', {
+      const res = await fetch('/api/auth/dashboard', {
         headers: {
           'Authorization': `Bearer ${authToken}`
         }
@@ -70,7 +70,7 @@ export default function UserDashboard({ authToken, currentUser, onOpenWorkspace,
 
   const handleTogglePin = async (queryId) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/auth/queries/${queryId}/pin`, {
+      const res = await fetch(`/api/auth/queries/${queryId}/pin`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`
@@ -88,7 +88,7 @@ export default function UserDashboard({ authToken, currentUser, onOpenWorkspace,
   const handleDeleteSession = async (sessionId) => {
     if (!window.confirm('Are you sure you want to delete this analytical session?')) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/auth/sessions/${sessionId}`, {
+      const res = await fetch(`/api/auth/sessions/${sessionId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authToken}`
