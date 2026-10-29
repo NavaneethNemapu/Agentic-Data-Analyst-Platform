@@ -14,7 +14,9 @@ import {
   Trash2,
   LogOut,
   ArrowRight,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Server,
+  Link2
 } from 'lucide-react';
 
 const AGENT_ROLES = [
@@ -349,11 +351,19 @@ export default function SettingsModal({
                   )}
                 </div>
 
-                {/* Upload & Reset Actions */}
+                {/* Method 1: Upload File-Based Dataset */}
                 <div className="settings-section">
-                  <label className="section-label">Dataset Management</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Upload size={15} color="var(--brand-primary)" />
+                      <span>Option A: Upload File Dataset</span>
+                    </label>
+                    <span style={{ fontSize: '11px', background: 'var(--bg-subtle)', padding: '2px 8px', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                      CSV &bull; SQLite (.db / .sqlite)
+                    </span>
+                  </div>
                   <p className="section-help">
-                    You can upload your own datasets (CSV, SQLite database files) to query them immediately with multi-agent intelligence.
+                    Drag and drop or select flat database files from your computer to analyze immediately.
                   </p>
 
                   <div className="data-action-buttons">
@@ -380,14 +390,24 @@ export default function SettingsModal({
                   </div>
                 </div>
 
-                {/* Connect Live Database Server (PostgreSQL, MySQL, SQLite) */}
+                {/* Method 2: Connect Live Database Server */}
                 <div className="settings-section">
-                  <label className="section-label">Connect Live Database Server</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label className="section-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Server size={15} color="var(--brand-primary)" />
+                      <span>Option B: Connect Live Database Server</span>
+                    </label>
+                    <span style={{ fontSize: '11px', background: 'var(--bg-subtle)', padding: '2px 8px', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                      PostgreSQL &bull; MySQL &bull; SQLite
+                    </span>
+                  </div>
                   <p className="section-help">
-                    Connect directly to PostgreSQL, MySQL, or custom database URL without editing code or <code>.env</code>.
+                    Connect directly to any live server or cloud database dynamically. No code modifications or <code>.env</code> file edits required!
                   </p>
+
                   <form onSubmit={handleConnectLiveDb} className="db-connect-form">
                     <div className="input-group">
+                      <label className="input-label">Connection URL</label>
                       <input
                         type="text"
                         className="settings-text-input"
@@ -396,15 +416,68 @@ export default function SettingsModal({
                         onChange={(e) => setDbConnectionUrl(e.target.value)}
                       />
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+
+                    {/* Quick fill pills */}
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Templates:</span>
+                      <button
+                        type="button"
+                        style={{
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'var(--bg-subtle)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setDbConnectionUrl('postgresql://postgres:password@localhost:5432/analytics_db')}
+                      >
+                        PostgreSQL
+                      </button>
+                      <button
+                        type="button"
+                        style={{
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'var(--bg-subtle)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setDbConnectionUrl('mysql+pymysql://root:password@localhost:3306/analytics_db')}
+                      >
+                        MySQL
+                      </button>
+                      <button
+                        type="button"
+                        style={{
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: 'var(--bg-subtle)',
+                          border: '1px solid var(--border-light)',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setDbConnectionUrl('sqlite:///./data/target.db')}
+                      >
+                        SQLite (Local)
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '12px' }}>
                       <button
                         type="submit"
                         className="btn-settings-action primary"
                         disabled={isConnectingDb || !dbConnectionUrl.trim()}
                       >
-                        {isConnectingDb ? 'Testing Connection...' : 'Connect & Switch Engine'}
+                        <Link2 size={14} />
+                        <span>{isConnectingDb ? 'Testing Connection...' : 'Connect & Switch Engine'}</span>
                       </button>
                     </div>
+
                     {dbConnectFeedback && (
                       <div className={`db-connect-feedback ${dbConnectFeedback.type}`} style={{
                         marginTop: '10px',
@@ -418,12 +491,6 @@ export default function SettingsModal({
                         {dbConnectFeedback.text}
                       </div>
                     )}
-                    <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                      <strong>Example URLs:</strong><br />
-                      • PostgreSQL: <code>postgresql://user:password@localhost:5432/analytics_db</code><br />
-                      • MySQL: <code>mysql+pymysql://user:password@localhost:3306/analytics_db</code><br />
-                      • SQLite: <code>sqlite:///./data/custom.db</code>
-                    </div>
                   </form>
                 </div>
               </div>

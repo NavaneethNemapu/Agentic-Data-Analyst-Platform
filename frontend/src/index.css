@@ -2526,8 +2526,8 @@ body {
 .settings-modal-dialog {
   width: 100%;
   max-width: 760px;
-  height: 80vh;
-  max-height: 620px;
+  height: 85vh;
+  max-height: 700px;
   background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-xl);
@@ -2624,6 +2624,23 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 24px 28px;
+}
+
+.settings-tab-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-tab-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-tab-content::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 9999px;
+}
+
+.settings-tab-content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 .settings-pane {
