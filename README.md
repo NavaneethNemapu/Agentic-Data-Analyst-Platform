@@ -1,11 +1,12 @@
 # Agentic AI Data Analyst Assistant
+
 ### A Heterogeneous Multi-Agent Architecture for Enterprise Natural-Language Database Analytics
 
 [![Python Version](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB.svg)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![SQL Dialects](https://img.shields.io/badge/Dialects-PostgreSQL%20%7C%20MySQL%20%7C%20SQLite-orange.svg)](#supported-database-engines)
+[![SQL Dialects](<https://img.shields.io/badge/Dialects-PostgreSQL%20%7C%20MySQL%20%7C%20SQLite-orange.svg>)](#supported-database-engines)
 
 ---
 
@@ -47,7 +48,7 @@ flowchart TD
     classDef loop fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#0f172a;
 
     UserQ["User Analytical Query\n(Natural Language)"]:::client --> Router{"Query Intent\nClassifier"}
-    
+  
     Router -->|"General Inquiry / Greeting"| DirectAns["Direct Conversational\nAnalyst Response"]:::agent
     Router -->|"Data Analytical Inquiry"| SchemaLinker["1. Schema Linker Agent\n(Dense Vector Retrieval + Schema Pruning)"]:::agent
 
@@ -78,6 +79,7 @@ flowchart TD
 ## Detailed Agent Decomposition
 
 ### 1. Schema Linker Agent (`app/agents/schema_linker.py`)
+
 * **Objective:** Solve context window saturation and schema noise by isolating only the sub-schema necessary for the query.
 * **Mechanism:**
   * Extracts structural table definitions and column comments from the connected database catalog.
@@ -86,12 +88,14 @@ flowchart TD
   * Prunes massive relational schemas down to a minimal, high-density DDL subset, saving up to 85% of LLM prompt tokens and preventing foreign-key hallucinations.
 
 ### 2. Query Planner Agent (`app/agents/query_planner.py`)
+
 * **Objective:** Deconstruct complex, multi-layered business inquiries into a structured logical sequence of sub-operations.
 * **Mechanism:**
   * Analyzes dependencies across analytical sub-goals (e.g., *Identify top-spending customers* $\rightarrow$ *Join with order history* $\rightarrow$ *Calculate month-over-month growth rate*).
   * Prevents premature SQL fragmentation, distinguishing queries that can be resolved in a single cohesive SQL query with Common Table Expressions (CTEs) or window functions versus queries requiring iterative context.
 
 ### 3. SQL Generator Agent (`app/agents/sql_generator.py`)
+
 * **Objective:** Produce syntactically pristine, dialect-compliant SQL code.
 * **Dialect Awareness:** Dynamically adjusts generation rules based on the connected engine:
   * **SQLite:** String concatenation with `||`, `strftime()` for datetime math, scalar date handling.
@@ -104,6 +108,7 @@ flowchart TD
   * **Self-Healing Loop (`correct_sql`):** When execution errors or validator objections occur, the agent ingests the failing SQL, database exception trace, and original question to synthesize a corrected query.
 
 ### 4. Validator & Senior Analyst Agent (`app/agents/validator.py`)
+
 * **Objective:** Eliminate silent semantic inaccuracies and translate raw tabular data into executive business intelligence.
 * **Mechanism:**
   * **Semantic Sanity Checking:** Verifies row counts, column data types, and logical boundaries against the original user prompt.
@@ -160,6 +165,7 @@ This project introduces **Analyst Experience Replay (AER)** via the `ExperienceB
 ```
 
 ### Key Technical Advantages of AER:
+
 1. **Dynamic Few-Shot Grounding:** Incoming queries compute cosine similarity against stored verified experiences. Exemplars exceeding threshold $\tau = 0.35$ are injected into the prompt as few-shot exemplars, effectively eliminating hallucinations for enterprise query patterns without model fine-tuning.
 2. **Autonomous Knowledge Compounding:** As users interact with the system, validated query-SQL pairs are saved automatically, allowing the platform to continuously self-improve over time.
 3. **Calibrated Confidence Scoring:** Returns a quantitative reliability metric $C \in [0.0, 1.0]$:
@@ -173,14 +179,14 @@ This project introduces **Analyst Experience Replay (AER)** via the `ExperienceB
 
 The architecture decouples the agent orchestration logic from underlying foundation models via the Unified LLM Factory (`app/llm/`):
 
-| Provider Class | Primary Models Supported | Best Suited Agent Role | Key Characteristic |
-|---|---|---|---|
-| **GroqProvider** | `llama-3.3-70b-versatile`, `qwen-2.5-32b` | SQL Generator, Schema Linker | Ultra-low inference latency (~300-500 tokens/sec via LPU) |
-| **GeminiProvider** | `gemini-2.5-flash`, `gemini-1.5-pro` | Validator & Analyst | Massive context window, deep semantic reasoning |
-| **SambaNovaProvider** | `Meta-Llama-3.1-70B-Instruct`, `Qwen2.5-72B` | SQL Generator | High-throughput data-center inference |
-| **OllamaProvider** | `qwen2.5-coder:7b`, `llama3:8b`, `deepseek-r1` | All Agents | Fully offline, privacy-compliant, zero API cost |
-| **OpenAIProvider** | `gpt-4o`, `gpt-4o-mini`, `o1-mini` | Query Planner, Validator | Complex multi-step reasoning and decomposition |
-| **AnthropicProvider**| `claude-3-5-sonnet`, `claude-3-haiku` | SQL Generator, Query Planner | Exceptional syntactic code generation accuracy |
+| Provider Class              | Primary Models Supported                             | Best Suited Agent Role       | Key Characteristic                                        |
+| --------------------------- | ---------------------------------------------------- | ---------------------------- | --------------------------------------------------------- |
+| **GroqProvider**      | `llama-3.3-70b-versatile`, `qwen-2.5-32b`        | SQL Generator, Schema Linker | Ultra-low inference latency (~300-500 tokens/sec via LPU) |
+| **GeminiProvider**    | `gemini-2.5-flash`, `gemini-1.5-pro`             | Validator & Analyst          | Massive context window, deep semantic reasoning           |
+| **SambaNovaProvider** | `Meta-Llama-3.1-70B-Instruct`, `Qwen2.5-72B`     | SQL Generator                | High-throughput data-center inference                     |
+| **OllamaProvider**    | `qwen2.5-coder:7b`, `llama3:8b`, `deepseek-r1` | All Agents                   | Fully offline, privacy-compliant, zero API cost           |
+| **OpenAIProvider**    | `gpt-4o`, `gpt-4o-mini`, `o1-mini`             | Query Planner, Validator     | Complex multi-step reasoning and decomposition            |
+| **AnthropicProvider** | `claude-3-5-sonnet`, `claude-3-haiku`            | SQL Generator, Query Planner | Exceptional syntactic code generation accuracy            |
 
 Each agent's provider and model can be dynamically assigned at runtime without restarting the server.
 
@@ -220,6 +226,7 @@ Allowing arbitrary SQL generation against production databases presents severe s
 ## Experimental Evaluation & Benchmark Results
 
 ### Evaluation Benchmark Dataset
+
 An expanded benchmark suite consisting of **21 complex analytical questions** was established across four standardized difficulty tiers, modeled after academic standards from the **BIRD** and **Spider** benchmarks:
 
 * **Easy (6 Questions):** Single-table aggregations, basic column projections, and simple conditions.
@@ -229,17 +236,17 @@ An expanded benchmark suite consisting of **21 complex analytical questions** wa
 
 ### Comparative Performance Metrics
 
-| Metric | Monolithic Single-LLM Baseline (Llama-3.3-70B) | Multi-Agent Consensus Pipeline (All-Groq) | Relative Improvement |
-|---|:---:|:---:|:---:|
-| **Overall Execution Accuracy (EX)** | 52.4% | **90.5%** | **+72.7%** |
-| **Valid SQL Rate (VSR)** | 85.7% | **100.0%** | **+16.7%** |
-| **Easy Tier Accuracy (6 Qs)** | 100.0% | **100.0%** | Baseline Parity |
-| **Medium Tier Accuracy (8 Qs)** | 50.0% | **100.0%** | **+100.0%** |
-| **Hard Tier Accuracy (5 Qs)** | 20.0% | **80.0%** | **+300.0%** |
-| **Extra Hard Tier Accuracy (2 Qs)** | 0.0% | **50.0%** | **+50.0% Abs.** |
-| **Zero-Row Silent Failure Rate** | 14.3% (3 queries) | **4.7% (1 query)** | **-67.1%** |
-| **Average End-to-End Latency** | 1.52s | 6.99s | Trade-off for Verification |
-| **Self-Healing Retries Triggered** | 0 (No self-correction) | 3 Automatic Self-Corrections | Self-Healing Active |
+| Metric                                    | Monolithic Single-LLM Baseline (Llama-3.3-70B) | Multi-Agent Consensus Pipeline (All-Groq) |    Relative Improvement    |
+| ----------------------------------------- | :--------------------------------------------: | :---------------------------------------: | :------------------------: |
+| **Overall Execution Accuracy (EX)** |                     52.4%                     |              **90.5%**              |      **+72.7%**      |
+| **Valid SQL Rate (VSR)**            |                     85.7%                     |             **100.0%**             |      **+16.7%**      |
+| **Easy Tier Accuracy (6 Qs)**       |                     100.0%                     |             **100.0%**             |      Baseline Parity      |
+| **Medium Tier Accuracy (8 Qs)**     |                     50.0%                     |             **100.0%**             |     **+100.0%**     |
+| **Hard Tier Accuracy (5 Qs)**       |                     20.0%                     |              **80.0%**              |     **+300.0%**     |
+| **Extra Hard Tier Accuracy (2 Qs)** |                      0.0%                      |              **50.0%**              |   **+50.0% Abs.**   |
+| **Zero-Row Silent Failure Rate**    |               14.3% (3 queries)               |         **4.7% (1 query)**         |      **-67.1%**      |
+| **Average End-to-End Latency**      |                     1.52s                     |                   6.99s                   | Trade-off for Verification |
+| **Self-Healing Retries Triggered**  |             0 (No self-correction)             |       3 Automatic Self-Corrections       |    Self-Healing Active    |
 
 ---
 
@@ -262,12 +269,12 @@ Every failure observed during benchmarking was systematically cataloged into an 
           & validator feedback)    observe retry loop)      Linker vector index)
 ```
 
-| Error Category | Single-Shot Count | Multi-Agent Count | Root Cause Analysis & Agentic Resolution |
-|---|:---:|:---:|---|
-| **Empty Result (Filter Mismatch)** | 3 | 1 | SQLite and binary collation databases enforce case-sensitive string matching. Single-shot models generated `status = 'completed'` while database records contained `'Completed'`. Resolved by agent rule enforcing `LOWER()` and validator zero-row feedback loop. |
-| **Database Execution Error** | 3 | 1 | Unqualified ambiguous column names and missing columns in `GROUP BY` clauses. Resolved by feeding database exception trace back to `correct_sql()`. |
-| **Incorrect Join / Schema Hallucination** | 2 | 0 | The single-shot model omitted intermediate bridge tables (e.g., attempting to join `customers` directly to `products` without `orders` and `order_items`). Resolved by the Schema Linker's dense vector subgraph retrieval. |
-| **Aggregation / Value Mismatch** | 2 | 0 | Unrounded floats and incorrect sorting criteria. Resolved by SQL Generator explicit business logic constraints. |
+| Error Category                                  | Single-Shot Count | Multi-Agent Count | Root Cause Analysis & Agentic Resolution                                                                                                                                                                                                                                 |
+| ----------------------------------------------- | :---------------: | :---------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Empty Result (Filter Mismatch)**        |         3         |         1         | SQLite and binary collation databases enforce case-sensitive string matching. Single-shot models generated `status = 'completed'` while database records contained `'Completed'`. Resolved by agent rule enforcing `LOWER()` and validator zero-row feedback loop. |
+| **Database Execution Error**              |         3         |         1         | Unqualified ambiguous column names and missing columns in `GROUP BY` clauses. Resolved by feeding database exception trace back to `correct_sql()`.                                                                                                                  |
+| **Incorrect Join / Schema Hallucination** |         2         |         0         | The single-shot model omitted intermediate bridge tables (e.g., attempting to join `customers` directly to `products` without `orders` and `order_items`). Resolved by the Schema Linker's dense vector subgraph retrieval.                                      |
+| **Aggregation / Value Mismatch**          |         2         |         0         | Unrounded floats and incorrect sorting criteria. Resolved by SQL Generator explicit business logic constraints.                                                                                                                                                          |
 
 ---
 
@@ -275,12 +282,12 @@ Every failure observed during benchmarking was systematically cataloged into an 
 
 The platform connects dynamically to both file-based datasets and enterprise server databases without requiring code edits:
 
-| Database Engine | Connection Mode | Configuration Pattern |
-|---|---|---|
-| **SQLite (Default)** | Local File / Web Upload | `sqlite:///./data/target.db` or upload `.sqlite`, `.db` directly via UI |
-| **CSV Datasets** | In-Memory SQLite Ingestion | Upload any `.csv` file via UI; auto-creates normalized relational tables |
-| **PostgreSQL** | Live Network Server / Cloud | `postgresql://user:password@localhost:5432/my_analytics_db` |
-| **MySQL / MariaDB** | Live Network Server / Cloud | `mysql+pymysql://user:password@localhost:3306/my_analytics_db` |
+| Database Engine            | Connection Mode             | Configuration Pattern                                                         |
+| -------------------------- | --------------------------- | ----------------------------------------------------------------------------- |
+| **SQLite (Default)** | Local File / Web Upload     | `sqlite:///./data/target.db` or upload `.sqlite`, `.db` directly via UI |
+| **CSV Datasets**     | In-Memory SQLite Ingestion  | Upload any `.csv` file via UI; auto-creates normalized relational tables    |
+| **PostgreSQL**       | Live Network Server / Cloud | `postgresql://user:password@localhost:5432/my_analytics_db`                 |
+| **MySQL / MariaDB**  | Live Network Server / Cloud | `mysql+pymysql://user:password@localhost:3306/my_analytics_db`              |
 
 ---
 
@@ -353,73 +360,14 @@ agentic-data-analyst/
 
 ---
 
-## Installation & Setup Guide
-
-### 1. Prerequisites
-* **Python:** 3.11 or higher
-* **Node.js:** 18 or higher
-* **Git**
-
-### 2. Backend Setup
-```bash
-# Navigate to backend directory
-cd agentic-data-analyst/backend
-
-# Create and activate a Python virtual environment
-python -m venv .venv
-
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-# source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Seed the default e-commerce database (orders, customers, products, order_items)
-python seed_ecommerce_db.py
-
-# Configure environment variables
-cp .env.example .env
-# Edit .env and supply your preferred API key (e.g., GROQ_API_KEY, GEMINI_API_KEY)
-```
-
-### 3. Running the Backend Server
-```bash
-# Start FastAPI backend on http://127.0.0.1:8000
-uvicorn app.main:app --reload --port 8000
-```
-
-### 4. Running the Benchmark Evaluation Harness
-To reproduce the experimental results comparing the single-shot baseline with the multi-agent pipeline:
-```bash
-# Run the 21-question benchmark suite
-python -m eval.run_eval
-```
-
-### 5. Running the Frontend Client
-```bash
-# In a new terminal, navigate to frontend directory
-cd agentic-data-analyst/frontend
-
-# Install dependencies
-npm install
-
-# Start Vite development server
-npm run dev
-# The workspace is now accessible at http://127.0.0.1:5173
-```
-
----
-
 ## Summary for Academic & Supervisory Review
 
-| Question | Architectural Answer |
-|---|---|
-| **What is the core contribution?** | Decomposition of text-to-SQL into a 4-agent consensus pipeline with bounded self-healing retries and a novel **Analyst Experience Replay (AER)** vector memory bank that enables continuous domain-specific learning without model fine-tuning. |
-| **How does it perform vs. single LLMs?** | Execution accuracy increases from **52.4% to 90.5%**, and Valid SQL Rate reaches **100%**, with catastrophic multi-table join failures eliminated. |
-| **How is database safety ensured?** | Multi-layered defense: Lexical/AST keyword rejection of all DDL/DML, connection-level read-only flags (`mode=ro`), and execution time limits. |
-| **Can it scale to enterprise RDBMS?** | Yes. It natively connects to **PostgreSQL**, **MySQL**, and **SQLite**, with dynamic CSV ingestion and an asynchronous Celery/Redis task queue for long-running batch queries. |
+| Question                                       | Architectural Answer                                                                                                                                                                                                                                  |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **What is the core contribution?**       | Decomposition of text-to-SQL into a 4-agent consensus pipeline with bounded self-healing retries and a novel **Analyst Experience Replay (AER)** vector memory bank that enables continuous domain-specific learning without model fine-tuning. |
+| **How does it perform vs. single LLMs?** | Execution accuracy increases from **52.4% to 90.5%**, and Valid SQL Rate reaches **100%**, with catastrophic multi-table join failures eliminated.                                                                                        |
+| **How is database safety ensured?**      | Multi-layered defense: Lexical/AST keyword rejection of all DDL/DML, connection-level read-only flags (`mode=ro`), and execution time limits.                                                                                                       |
+| **Can it scale to enterprise RDBMS?**    | Yes. It natively connects to **PostgreSQL**, **MySQL**, and **SQLite**, with dynamic CSV ingestion and an asynchronous Celery/Redis task queue for long-running batch queries.                                                      |
 
 ---
 
